@@ -4,26 +4,22 @@ pipeline {
   options {
     timestamps()
     buildDiscarder(logRotator(numToKeepStr: '10'))
-
   }
 
   environment {
-    PROJECT_DIR = ''
+    PROJECT_DIR = '.'            // default to repo root
     REPORT_FILE = 'report.html'
   }
 
   stages {
-    stage('Checkout') {
-      steps { checkout scm }
-    }
-
     stage('Detect project directory') {
       steps {
         script {
-          if (fileExists('requirements.txt')) {
-            env.PROJECT_DIR = '.'
-          } else if (fileExists('api_testing_framework/requirements.txt')) {
+          // If the framework lives in a subfolder, switch to it
+          if (fileExists('api_testing_framework/requirements.txt')) {
             env.PROJECT_DIR = 'api_testing_framework'
+          } else if (fileExists('requirements.txt')) {
+            env.PROJECT_DIR = '.'
           } else {
             error("Could not find requirements.txt at repo root or in api_testing_framework/")
           }
@@ -38,6 +34,7 @@ pipeline {
           if (isUnix()) {
             dir(env.PROJECT_DIR) {
               sh '''
+                set -e
                 python3 -m venv venv
                 . venv/bin/activate
                 pip install --upgrade pip
@@ -45,10 +42,11 @@ pipeline {
               '''
             }
           } else {
-            // Windows
             dir(env.PROJECT_DIR) {
               bat '''
-                py -3 -m venv venv
+                @echo off
+                rem Use py if available, else fall back to python
+                where py >nul 2>nul && (py -3 -m venv venv) || (python -m venv venv)
                 call venv\\Scripts\\activate
                 python -m pip install --upgrade pip
                 pip install -r requirements.txt
@@ -65,6 +63,7 @@ pipeline {
           if (isUnix()) {
             dir(env.PROJECT_DIR) {
               sh '''
+                set -e
                 . venv/bin/activate
                 pytest -q --maxfail=1 --html=report.html --self-contained-html
               '''
@@ -72,6 +71,7 @@ pipeline {
           } else {
             dir(env.PROJECT_DIR) {
               bat '''
+                @echo off
                 call venv\\Scripts\\activate
                 pytest -q --maxfail=1 --html=report.html --self-contained-html
               '''
@@ -84,13 +84,12 @@ pipeline {
 
   post {
     always {
+      // Archive the HTML report and logs if present; no HTML Publisher needed
       script {
-        publishHTML(target: [
-          reportDir: env.PROJECT_DIR,
-          reportFiles: env.REPORT_FILE,
-          reportName: 'PyTest Report'
-        ])
-        archiveArtifacts artifacts: "${env.PROJECT_DIR}/${env.REPORT_FILE}, ${env.PROJECT_DIR}/logs/**", fingerprint: true
+        def patterns = []
+        patterns << "${env.PROJECT_DIR}/${env.REPORT_FILE}"
+        patterns << "${env.PROJECT_DIR}/logs/**"
+        archiveArtifacts artifacts: patterns.join(', '), allowEmptyArchive: true, fingerprint: true
       }
     }
   }
