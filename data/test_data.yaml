@@ -1,0 +1,34 @@
+# A simple test suite definition for demonstration purposes.
+# Each item in this list represents a test case executed by pytest.
+tests:
+  - name: Get valid post
+    method: get
+    endpoint: get_post
+    params:
+      id: 1
+    expected_status: 200
+    expected_keys:
+      - userId
+      - id
+      - title
+      - body
+
+  - name: Get comments
+    method: get
+    endpoint: get_comments
+    expected_status: 200
+    expected_min_length: 1
+
+  - name: Create post
+    method: post
+    endpoint: create_post
+    payload:
+      title: "foo"
+      body: "bar"
+      userId: 1
+    expected_status: 201
+    expected_keys:
+      - id
+      - title
+      - body
+      - userId

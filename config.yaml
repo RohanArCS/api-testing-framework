@@ -1,0 +1,12 @@
+default_environment: dev
+
+environments:
+  # Define multiple environments if needed
+  dev:
+    base_url: https://jsonplaceholder.typicode.com
+  # Additional environments can be added here (e.g. staging, prod)
+
+endpoints:
+  get_post: /posts/{id}
+  get_comments: /comments
+  create_post: /posts
