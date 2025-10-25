@@ -7,7 +7,7 @@ pipeline {
   }
 
   environment {
-    PROJECT_DIR = '.'            // default to repo root
+    PROJECT_DIR = '.'
     REPORT_FILE = 'report.html'
   }
 
@@ -15,7 +15,6 @@ pipeline {
     stage('Detect project directory') {
       steps {
         script {
-          // If the framework lives in a subfolder, switch to it
           if (fileExists('api_testing_framework/requirements.txt')) {
             env.PROJECT_DIR = 'api_testing_framework'
           } else if (fileExists('requirements.txt')) {
@@ -28,55 +27,48 @@ pipeline {
       }
     }
 
+    stage('Ensure Python is installed') {
+      steps {
+        bat '''
+          @echo off
+          python --version >nul 2>&1
+          if %errorlevel% neq 0 (
+            echo Python not found, downloading installer...
+            powershell -Command "Invoke-WebRequest -Uri https://www.python.org/ftp/python/3.11.6/python-3.11.6-amd64.exe -OutFile python-installer.exe"
+            echo Installing Python silently...
+            python-installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
+            echo Python installation complete.
+          ) else (
+            echo Python already installed.
+          )
+          python --version
+        '''
+      }
+    }
+
     stage('Setup Python venv') {
       steps {
-        script {
-          if (isUnix()) {
-            dir(env.PROJECT_DIR) {
-              sh '''
-                set -e
-                python3 -m venv venv
-                . venv/bin/activate
-                pip install --upgrade pip
-                pip install -r requirements.txt
-              '''
-            }
-          } else {
-            dir(env.PROJECT_DIR) {
-              bat '''
-                @echo off
-                rem Use py if available, else fall back to python
-                where py >nul 2>nul && (py -3 -m venv venv) || (python -m venv venv)
-                call venv\\Scripts\\activate
-                python -m pip install --upgrade pip
-                pip install -r requirements.txt
-              '''
-            }
-          }
+        dir(env.PROJECT_DIR) {
+          bat '''
+            @echo off
+            where python
+            python -m venv venv
+            call venv\\Scripts\\activate
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+          '''
         }
       }
     }
 
     stage('Run tests') {
       steps {
-        script {
-          if (isUnix()) {
-            dir(env.PROJECT_DIR) {
-              sh '''
-                set -e
-                . venv/bin/activate
-                pytest -q --maxfail=1 --html=report.html --self-contained-html
-              '''
-            }
-          } else {
-            dir(env.PROJECT_DIR) {
-              bat '''
-                @echo off
-                call venv\\Scripts\\activate
-                pytest -q --maxfail=1 --html=report.html --self-contained-html
-              '''
-            }
-          }
+        dir(env.PROJECT_DIR) {
+          bat '''
+            @echo off
+            call venv\\Scripts\\activate
+            pytest -q --maxfail=1 --html=report.html --self-contained-html
+          '''
         }
       }
     }
@@ -84,7 +76,6 @@ pipeline {
 
   post {
     always {
-      // Archive the HTML report and logs if present; no HTML Publisher needed
       script {
         def patterns = []
         patterns << "${env.PROJECT_DIR}/${env.REPORT_FILE}"
