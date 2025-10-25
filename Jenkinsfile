@@ -37,10 +37,12 @@ pipeline {
             powershell -Command "Invoke-WebRequest -Uri https://www.python.org/ftp/python/3.11.6/python-3.11.6-amd64.exe -OutFile python-installer.exe"
             echo Installing Python silently...
             python-installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
-            echo Python installation complete.
+            echo Adding Python to PATH for this session...
+            set PATH=C:\\Program Files\\Python311;C:\\Program Files\\Python311\\Scripts;%PATH%
           ) else (
             echo Python already installed.
           )
+          set PATH=C:\\Program Files\\Python311;C:\\Program Files\\Python311\\Scripts;%PATH%
           python --version
         '''
       }
@@ -51,7 +53,6 @@ pipeline {
         dir(env.PROJECT_DIR) {
           bat '''
             @echo off
-            where python
             python -m venv venv
             call venv\\Scripts\\activate
             python -m pip install --upgrade pip
@@ -76,12 +77,18 @@ pipeline {
 
   post {
     always {
-      script {
-        def patterns = []
-        patterns << "${env.PROJECT_DIR}/${env.REPORT_FILE}"
-        patterns << "${env.PROJECT_DIR}/logs/**"
-        archiveArtifacts artifacts: patterns.join(', '), allowEmptyArchive: true, fingerprint: true
-      }
+      // ✅ Publish HTML test report in Jenkins
+      publishHTML(target: [
+        reportDir: "${env.PROJECT_DIR}",
+        reportFiles: "${env.REPORT_FILE}",
+        reportName: "API Regression Test Report",
+        keepAll: true,
+        alwaysLinkToLastBuild: true,
+        allowMissing: true
+      ])
+
+      // ✅ Archive artifacts for download
+      archiveArtifacts artifacts: "${env.PROJECT_DIR}/${env.REPORT_FILE}, ${env.PROJECT_DIR}/logs/**", fingerprint: true
     }
   }
 }
