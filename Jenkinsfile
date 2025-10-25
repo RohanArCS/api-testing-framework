@@ -77,7 +77,6 @@ pipeline {
 
   post {
     always {
-      // Safe publish: skip if plugin missing
       script {
         try {
           publishHTML(target: [
@@ -89,11 +88,12 @@ pipeline {
             allowMissing: true
           ])
         } catch (e) {
-          echo "HTML Publisher plugin not found or disabled — skipping publishHTML step."
+          echo "HTML Publisher plugin missing or disabled — skipping HTML publish."
         }
       }
 
-      archiveArtifacts artifacts: "${env.PROJECT_DIR}/${env.REPORT_FILE}, ${env.PROJECT_DIR}/logs/**", fingerprint: true
+      // ✅ Correct artifact path pattern
+      archiveArtifacts artifacts: "report.html, logs/**", fingerprint: true
     }
   }
 }
